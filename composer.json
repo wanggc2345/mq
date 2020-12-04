@@ -1,0 +1,22 @@
+{
+    "name": "esswbasic/utilmq",
+    "description": "wrapper mq",
+    "type": "library",
+    "authors": [
+        {
+            "name": "wanggc",
+            "email": "wanggc@2345.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "php": ">=7.0",
+        "php-amqplib/php-amqplib": ">=2.9"
+    },
+    "require-dev": {},
+    "autoload": {
+        "psr-4": {
+            "ESSWBasic\\UtilMQ\\": "src/"
+        }
+    }
+}
