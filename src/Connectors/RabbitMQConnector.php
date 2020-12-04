@@ -16,8 +16,6 @@ class RabbitMQConnector implements ConnectorInterface
 
     public function connect(array $config)
     {
-        return new RabbitMQDriver(
-
-        );
+        return new RabbitMQDriver($config);
     }
 }

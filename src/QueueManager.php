@@ -6,8 +6,8 @@ use ESSWBasic\UtilMQ\Connectors\ConnectorInterface;
 use ESSWBasic\UtilMQ\Connectors\KafkaConnector;
 use ESSWBasic\UtilMQ\Connectors\NullConnector;
 use ESSWBasic\UtilMQ\Connectors\RabbitMQConnector;
-use ESSWBasic\UtilMQ\Driver\RedisDriver;
 use ESSWBasic\UtilMQ\Driver\Queue;
+use Illuminate\Queue\Connectors\RedisConnector;
 use InvalidArgumentException;
 use Closure;
 
@@ -17,54 +17,63 @@ use Closure;
  *
  * @package ESSWBase\UtilMQ
  * @method pop()
+ * @method push()
  */
 class QueueManager
 {
-    protected $connections = [];
-    protected $connectors = [];
-    protected $config = [];
+    private static $connections = [];
+    private static $connectors = [];
+    private static $config = [];
+    private static $instance;
 
-    public function __construct()
+    private function __construct()
     {
-        $config = include __DIR__. "/config/config.php";
-        $this->config = $config;
-        $driver = $this->config['driver'];
+        self::$config = include __DIR__. "/config/config.php";
+        $driver = self::$config['driver'];
 
+        self::addConnector($driver, function () use($driver){
+            switch ($driver) {
+                case 'rabbitmq':
+                    return new RabbitMQConnector();
+                case 'kafka':
+                    return new KafkaConnector();
+                case 'redis':
+                    return new RedisConnector();
+                default:
+                    return new NullConnector();
+            }
+        });
     }
 
-
-
-
+    public static function getInstance(){
+        if (!self::$instance instanceof self) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
 
     // 判断是否已创建连接
-    public function connected($name)
+    public static function connected($name)
     {
-        return isset($this->connections[$name]);
-    }
-
-
-    // 返回config.php 定义的数组变量
-    public function getConfig()
-    {
-        return include __DIR__ . "/config/config.php";
+        return isset($self::connections[$name]);
     }
 
     /**
      * @param $driver
      * @return ConnectorInterface
      */
-    protected function getConnector($driver)
+    private function getConnector($driver)
     {
-        if (! isset($this->connectors[$driver])) {
+        if (! isset(self::$connectors[$driver])) {
             throw new InvalidArgumentException("No connector for [$driver].");
         }
 
-        return call_user_func($this->connectors[$driver]);
+        return call_user_func(self::$connectors[$driver]);
     }
 
-    public function addConnector($driver, Closure $resolver)
+    public static function addConnector($driver, Closure $resolver)
     {
-        $this->connectors[$driver] = $resolver;
+        self::$connectors[$driver] = $resolver;
     }
 
     /**
@@ -72,7 +81,7 @@ class QueueManager
      */
     protected function resolve()
     {
-        $config = $this->getConfig();
+        $config = self::$config;
 
         $obj = $this->getConnector($config['driver']);
         $connect = $obj->connect($config);
@@ -81,25 +90,19 @@ class QueueManager
         return $set;
     }
 
-    // access
     /**
      * @return Queue
      */
     public function connection()
     {
-        $config = $this->getConfig();
-        $name = $config['driver'];
-
-        if (! isset($this->connections[$name])) {
-
-            var_dump($this->connections[$name]);
-            $this->connections[$name] = $this->resolve();
+        $name = self::$config['driver'];
+        if (! isset(self::$connections[$name])) {
+           self::$connections[$name] = $this->resolve();
         }
 
-        return $this->connections[$name];
+        return self::$connections[$name];
     }
 
-    //
     public function __call($method, $parameters)
     {
         return $this->connection()->$method(...$parameters);
